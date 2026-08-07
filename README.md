@@ -65,9 +65,16 @@ Claude 토큰은 `/usr/bin/security`로 읽고 Anthropic 사용량 API 호출에
 배포하는 쪽:
 
 ```bash
-./build.sh dist 1.1
-gh release create v1.1 UsageBar.zip -R docbab/PhErols- -t v1.1 --generate-notes
+./build.sh dist 1.4                 # UsageBar.zip + release-notes.md 생성
+$EDITOR release-notes.md            # "## 바뀐 것" 만 채우기
+gh release create v1.4 UsageBar.zip -R docbab/PhErols- -t v1.4 --latest --notes-file release-notes.md
 ```
+
+릴리스 노트의 설치·문제해결 부분은 매번 같으므로 `RELEASE_NOTES_TEMPLATE.md` 에 두고
+`build.sh dist` 가 `{{VERSION}}` 을 치환해 `release-notes.md` 로 내보낸다 (생성물이라 gitignore).
+설치 안내를 고칠 일이 생기면 템플릿만 고치면 된다.
+
+`--latest` 를 빼먹거나 pre-release 로 올리면 앱의 업데이트 확인이 그 릴리스를 못 본다.
 
 버전은 `CFBundleShortVersionString` 에 그대로 박히고, 태그의 `v` 접두사는 비교 시 벗겨진다.
 릴리스 확인은 토큰 없이 호출하므로 **레포가 public 이어야 한다**. 레포 슬러그는
