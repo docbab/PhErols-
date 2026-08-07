@@ -83,4 +83,5 @@ gh release create v1.1 UsageBar.zip -R docbab/PhErols- -t v1.1 --generate-notes
 Xcode 프로젝트 없음. 소스는 `UsageBar.swift` 한 파일. `mkicon.swift`는 아이콘
 (`AppIcon.icns`) 생성용이며 빌드에 관여하지 않는다.
 
-CLI 옵션: `--selftest`, `--login on|off|status`.
+CLI 옵션: `--selftest`, `--login on|off|status`, `--checkupdate` (설치된 버전과 최신 릴리스
+비교 결과를 출력하고 종료 — 업데이트 알림이 안 뜰 때 확인용).
