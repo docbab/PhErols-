@@ -245,8 +245,8 @@ func notify(_ a: Advice) {
 
 // MARK: - Update check
 
-/// Where `build.sh dist` publishes to. The releases API is read without a token, so the repo
-/// must be public — a private repo returns 404 to everyone who isn't logged in.
+/// Where `build.sh dist` publishes to. Read without a token, so the repo must be public —
+/// a private repo is a 404 to everyone who isn't logged in.
 let releasesRepo = "docbab/PhErols-"
 
 let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
@@ -265,24 +265,33 @@ func isNewer(_ a: String, than b: String) -> Bool {
     return false
 }
 
-private struct GHRelease: Decodable {
-    let tag_name: String
-    let html_url: String
+/// `/releases/latest` redirects to `/releases/tag/<tag>`, so the landing URL carries the version.
+/// A repo with no published release lands on plain `/releases` instead — hence the path check.
+func version(fromRedirect url: URL) -> String? {
+    let parts = url.pathComponents
+    guard let i = parts.firstIndex(of: "tag"), i > 0, parts[i - 1] == "releases",
+          i + 1 < parts.count
+    else { return nil }
+    let tag = parts[i + 1]
+    let v = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+    return v.isEmpty ? nil : v
 }
 
+/// The HTML endpoint, not api.github.com: the unauthenticated API allows 60 requests an hour
+/// per IP, shared with every other tool on the machine and with everyone behind the same office
+/// NAT, so the check would silently stop working. A HEAD that follows the redirect has no limit.
 func fetchRelease() async -> Release? {
-    guard let url = URL(string: "https://api.github.com/repos/\(releasesRepo)/releases/latest")
+    guard let url = URL(string: "https://github.com/\(releasesRepo)/releases/latest")
     else { return nil }
     var req = URLRequest(url: url)
-    req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+    req.httpMethod = "HEAD"
     req.timeoutInterval = 15
-    guard let (data, resp) = try? await URLSession.shared.data(for: req),
+    req.cachePolicy = .reloadIgnoringLocalCacheData
+    guard let (_, resp) = try? await URLSession.shared.data(for: req),
           (resp as? HTTPURLResponse)?.statusCode == 200,
-          let r = try? JSONDecoder().decode(GHRelease.self, from: data),
-          let page = URL(string: r.html_url)
+          let final = resp.url, let v = version(fromRedirect: final)
     else { return nil }
-    let v = r.tag_name.hasPrefix("v") ? String(r.tag_name.dropFirst()) : r.tag_name
-    return Release(version: v, url: page)
+    return Release(version: v, url: final)
 }
 
 // MARK: - Login item
@@ -669,6 +678,14 @@ func selfTest() {
     assert(isNewer("1.2.1", than: "1.2"), "trailing component counts")
     assert(!isNewer("1.2", than: "1.2") && !isNewer("1.2", than: "1.2.0"), "equal must not nag")
     assert(!isNewer("0.9", than: "1.0"), "older release must not prompt")
+
+    // Version comes from the URL /releases/latest redirects to.
+    func redirect(_ s: String) -> String? { version(fromRedirect: URL(string: s)!) }
+    assert(redirect("https://github.com/docbab/PhErols-/releases/tag/v1.2") == "1.2", "tag parse")
+    assert(redirect("https://github.com/o/r/releases/tag/1.2") == "1.2", "bare tag, no v prefix")
+    // No release published: GitHub lands on the releases index, which carries no version.
+    assert(redirect("https://github.com/o/r/releases") == nil, "index page must not parse")
+    assert(redirect("https://github.com/o/tag/x") == nil, "'tag' outside /releases/ must not parse")
 
     print("selftest ok")
 }
