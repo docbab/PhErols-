@@ -294,6 +294,20 @@ func fetchRelease() async -> Release? {
     return Release(version: v, url: final)
 }
 
+// MARK: - Single instance
+
+/// macOS only redirects a re-launch to the running copy when both live at the same path, so an
+/// update unzipped to ~/Downloads runs *alongside* the one in /Applications. Two status items
+/// then compete for a menu bar that may not have room for either. Newest launch wins.
+func terminateOtherInstances() {
+    let me = ProcessInfo.processInfo.processIdentifier
+    guard let id = Bundle.main.bundleIdentifier else { return }
+    for app in NSRunningApplication.runningApplications(withBundleIdentifier: id)
+    where app.processIdentifier != me {
+        if !app.terminate() { app.forceTerminate() }
+    }
+}
+
 // MARK: - Login item
 
 /// macOS registers the bundle by path, so moving or renaming UsageBar.app breaks the
@@ -604,6 +618,8 @@ struct UsageBarApp: App {
             print("login item: \(LoginItem.enabled ? "enabled" : "disabled")")
             exit(0)
         }
+        // After the CLI paths bail out — a --selftest run must not kill the user's menu bar app.
+        terminateOtherInstances()
     }
 
     var body: some Scene {
