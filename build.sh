@@ -51,5 +51,11 @@ if [ "$MODE" = "dist" ]; then
   # ditto, not zip: it preserves the bundle's code signature and metadata.
   ditto -c -k --keepParent "$APP" UsageBar.zip
   echo "packaged $PWD/UsageBar.zip ($(du -h UsageBar.zip | cut -f1))"
-  echo "publish:  gh release create v$VERSION UsageBar.zip -R docbab/PhErols- -t v$VERSION --generate-notes"
+
+  # The install/troubleshooting half of the notes is identical every release; only the
+  # changelog differs. Regenerate rather than copy-paste so the version never goes stale.
+  # Strip the leading HTML comment (instructions for the maintainer, not for the release page).
+  sed -e '/^<!--$/,/^-->$/d' -e "s/{{VERSION}}/$VERSION/g" RELEASE_NOTES_TEMPLATE.md > release-notes.md
+  echo "notes:    $PWD/release-notes.md — fill in '## 바뀐 것', then:"
+  echo "publish:  gh release create v$VERSION UsageBar.zip -R docbab/PhErols- -t v$VERSION --latest --notes-file release-notes.md"
 fi
