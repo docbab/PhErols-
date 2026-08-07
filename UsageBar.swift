@@ -568,6 +568,23 @@ struct UsageBarApp: App {
     init() {
         let args = CommandLine.arguments
         if args.contains("--selftest") { selfTest(); exit(0) }
+        // Lets a user (or a release check) confirm the update path end to end without a GUI.
+        if args.contains("--checkupdate") {
+            // Detached: App.init runs on the main actor, so a plain Task would inherit it and
+            // deadlock against the semaphore wait below.
+            let sem = DispatchSemaphore(value: 0)
+            Task.detached {
+                if let r = await fetchRelease() {
+                    print("installed v\(appVersion), latest v\(r.version) — "
+                          + (isNewer(r.version, than: appVersion) ? "update available: \(r.url)" : "up to date"))
+                } else {
+                    print("installed v\(appVersion), no release found at \(releasesRepo)")
+                }
+                sem.signal()
+            }
+            sem.wait()
+            exit(0)
+        }
         // Headless toggle, also how build.sh verifies registration works.
         if let i = args.firstIndex(of: "--login") {
             let want = args.count > i + 1 ? args[i + 1] : "status"
